@@ -133,6 +133,42 @@ The setup commands have been tested on Ubuntu 20.04 (ROS Noetic). If you are usi
       auto_start: true
   ```
 
+### MARSIM Mid360 Simulation Mode
+This mode keeps the FALCON planner and mapping stack, but replaces the built-in mesh/depth-camera simulator with MARSIM's Livox Mid360 point cloud backend.
+
+Dependencies:
+* MARSIM packages in this workspace
+* GLEW, GLFW, and OpenGL for MARSIM rendering
+* CUDA and Open3D are still required by the original FALCON GPU mesh/depth packages; if you only use the CPU MARSIM Mid360 flow, build failures from missing CUDA/Open3D can be ignored while validating this integration.
+
+Launch FALCON with MARSIM Mid360:
+```
+roslaunch exploration_manager exploration_marsim.launch map_name:=marsim_forest
+roslaunch exploration_manager exploration_marsim.launch map_name:=marsim_library
+```
+
+If CUDA/Open3D are not installed and the original FALCON camera-render packages fail to configure, build the MARSIM Mid360 flow with those packages blacklisted:
+```
+catkin_make -DCMAKE_BUILD_TYPE=Release -DCATKIN_BLACKLIST_PACKAGES="mesh_render;pointcloud_render;map_render"
+source devel/setup.bash
+```
+
+Launch RViz in another terminal:
+```
+roslaunch exploration_manager rviz.launch
+```
+
+Mode comparison:
+
+| Item | Original Gazebo-like simulator | MARSIM Mid360 mode |
+|---|---|---|
+| Planner launch | `exploration.launch` | `exploration_marsim.launch` |
+| Sensor input | `/uav_simulator/depth_image` | `/quad0_pcl_render_node/cloud` |
+| Sensor pose | `/uav_simulator/sensor_pose` | `/quad0_pcl_render_node/sensor_pose` |
+| Odometry | `/uav_simulator/odometry` | `/quad_0/lidar_slam/odom` |
+| Control command | `/planning/pos_cmd` | `/quad_0/planning/pos_cmd` |
+| Simulator nodes | FALCON `map_render_node`, `poscmd_2_odom`, `odom_visualization` | MARSIM `map_pub`, dynamics, cascadePID, odom visualization, Mid360 renderer |
+
 ## Results
 ### Simulation Benchmark
 <div align="center">

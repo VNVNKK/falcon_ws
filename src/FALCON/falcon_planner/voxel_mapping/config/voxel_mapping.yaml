@@ -7,7 +7,8 @@ voxel_mapping:
   depth_scaling_factor: 1000.0
   depth_decimation_filter: false
   skip_pixel: 4
-  concurrent_depth_input_max: 1
+  concurrent_depth_input_max: 2
+  concurrent_pointcloud_input_max: 2
 
   publish_tsdf: true
   publish_esdf: true
@@ -29,9 +30,9 @@ voxel_mapping:
   verbose_time: false
 
   tsdf:
-    tsdf_truncated_distance_scale: 2.0 # tsdf_truncated_dist = scale * resolution
+    tsdf_truncated_distance_scale: 4.0 # tsdf_truncated_dist = scale * resolution
     raycast_min: 0.0
-    raycast_max: 5.0
+    raycast_max: 15.0
     epsilon: 0.0001 # 1e-4
   
   occupancy_grid:
@@ -41,6 +42,6 @@ voxel_mapping:
 transformer:
   world_frame: "world"
   sensor_frame: "camera"
-  pose_topic_type: "transform" # "pose", "odometry", "transform" 
+  pose_topic_type: "pose" # "pose", "odometry", "transform"
   timestamp_tolerance: 0.001 # 1ms
   verbose: false

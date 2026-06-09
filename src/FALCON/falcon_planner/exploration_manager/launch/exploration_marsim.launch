@@ -1,0 +1,61 @@
+<launch>
+  <arg name="map_name" default="marsim_forest"/>
+
+  <arg name="odometry_topic" value="/quad_0/lidar_slam/odom"/>
+  <arg name="pointcloud_topic" value="/quad0_pcl_render_node/cloud"/>
+  <arg name="sensor_pose_topic" value="/quad0_pcl_render_node/sensor_pose"/>
+
+  <arg name="marsim_downsample_resolution" default="0.1"/>
+  <arg name="marsim_use_gpu" default="false"/>
+  <arg name="marsim_use_uav_extra_model" default="0"/>
+
+  <!-- Load parameter for modules -->
+  <rosparam command="load" file="$(find exploration_manager)/config/robot/uav_model_simulator.yaml"/>
+  <rosparam command="load" file="$(find exploration_manager)/config/map/$(arg map_name).yaml"/>
+  <rosparam command="load" file="$(find voxel_mapping)/config/voxel_mapping.yaml"/>
+  <rosparam command="load" file="$(find pathfinding)/config/astar.yaml"/>
+  <rosparam command="load" file="$(find fast_planner)/config/fast_planner.yaml"/>
+  <rosparam command="load" file="$(find exploration_preprocessing)/config/frontier_finder.yaml"/>
+  <rosparam command="load" file="$(find exploration_preprocessing)/config/hgrid.yaml"/>
+  <rosparam command="load" file="$(find exploration_utils)/config/perception_utils.yaml"/>
+  <rosparam command="load" file="$(find exploration_manager)/config/exploration_manager.yaml"/>
+
+  <!-- Launch exploration node with MARSIM Mid360 inputs -->
+  <node pkg="exploration_manager" name="exploration_node" type="exploration_node" output="screen">
+    <remap from="/odom_world" to="$(arg odometry_topic)"/>
+    <remap from="/voxel_mapping/pointcloud" to="$(arg pointcloud_topic)"/>
+    <remap from="/transformer/sensor_pose_topic" to="$(arg sensor_pose_topic)"/>
+  </node>
+
+  <!-- Launch trajectory server and feed MARSIM cascadePID directly -->
+  <node pkg="fast_planner" name="traj_server" type="traj_server" output="screen">
+    <remap from="/planning/pos_cmd" to="/quad_0/planning/pos_cmd"/>
+  </node>
+
+  <!-- Launch the MARSIM single-drone Mid360 backend. -->
+  <group if="$(eval arg('map_name') == 'marsim_forest')">
+    <include file="$(find exploration_manager)/launch/marsim_mid360_single.launch">
+      <arg name="map_pcd" value="$(find map_generator)/resource/small_forest01cutoff.pcd"/>
+      <arg name="downsample_resolution" value="$(arg marsim_downsample_resolution)"/>
+      <arg name="use_gpu" value="$(arg marsim_use_gpu)"/>
+      <arg name="init_x" value="0.0"/>
+      <arg name="init_y" value="0.0"/>
+      <arg name="init_z" value="1.5"/>
+      <arg name="init_yaw" value="0.0"/>
+      <arg name="use_uav_extra_model" value="$(arg marsim_use_uav_extra_model)"/>
+    </include>
+  </group>
+
+  <group if="$(eval arg('map_name') == 'marsim_library')">
+    <include file="$(find exploration_manager)/launch/marsim_mid360_single.launch">
+      <arg name="map_pcd" value="$(find map_generator)/resource/LibraryLG_01cutoff_sor.pcd"/>
+      <arg name="downsample_resolution" value="$(arg marsim_downsample_resolution)"/>
+      <arg name="use_gpu" value="$(arg marsim_use_gpu)"/>
+      <arg name="init_x" value="0.0"/>
+      <arg name="init_y" value="0.0"/>
+      <arg name="init_z" value="1.0"/>
+      <arg name="init_yaw" value="0.0"/>
+      <arg name="use_uav_extra_model" value="$(arg marsim_use_uav_extra_model)"/>
+    </include>
+  </group>
+</launch>

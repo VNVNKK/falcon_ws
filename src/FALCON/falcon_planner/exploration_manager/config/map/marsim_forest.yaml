@@ -1,0 +1,48 @@
+map_config:
+  map_file: ""
+  map_dimension: 3
+
+  # Initial position and orientation of the robot under the world frame
+  init_x: 0.0
+  init_y: 0.0
+  init_z: 1.5
+  init_yaw: 0.0
+
+  map_size:
+    # MARSIM PCD AABB: x[-28.10, 50.23], y[-17.41, 6.41], z[-0.60, 14.99]
+    map_min_x: -30.0
+    map_min_y: -19.0
+    map_min_z: -1.0
+    map_max_x: 52.0
+    map_max_y: 8.0
+    map_max_z: 16.0
+
+    # Size of the task bbox in meters
+    box_min_x: -24.0
+    box_min_y: -14.0
+    box_min_z: 0.2
+    box_max_x: 46.0
+    box_max_y: 4.0
+    box_max_z: 4.0
+
+    # Size of the visualization bbox in meters
+    vbox_min_x: -27.0
+    vbox_min_y: -16.0
+    vbox_min_z: 0.0
+    vbox_max_x: 49.0
+    vbox_max_y: 6.0
+    vbox_max_z: 5.0
+
+  scale: 1.0
+
+  T_b_c:
+  - [1.0, 0.0, 0.0, 0.0]
+  - [0.0, 1.0, 0.0, 0.0]
+  - [0.0, 0.0, 1.0, 0.0]
+  - [0.0, 0.0, 0.0, 1.0]
+
+  T_m_w:
+  - [1.0, 0.0, 0.0, 0.0]
+  - [0.0, 1.0, 0.0, 0.0]
+  - [0.0, 0.0, 1.0, 0.0]
+  - [0.0, 0.0, 0.0, 1.0]

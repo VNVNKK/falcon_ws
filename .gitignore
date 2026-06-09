@@ -8,3 +8,6 @@ cmake-build-*/
 *~
 *.pyc
 __pycache__/
+.catkin_workspace
+.claude
+.codex

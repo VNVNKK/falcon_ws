@@ -518,7 +518,7 @@ int main(int argc, char **argv) {
     ros::NodeHandle n("~");
 
     n.param("mesh_resource", mesh_resource,
-            std::string("package://odom_visualization/meshes/uav.mesh"));
+            std::string("package://odom_visualization/meshes/yunque.dae"));
     n.param("color/r", color_r, 1.0);
     n.param("color/g", color_g, 0.0);
     n.param("color/b", color_b, 0.0);

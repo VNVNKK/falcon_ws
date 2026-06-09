@@ -63,7 +63,7 @@ class opengl_pointcloud_render
 {
     public:
     opengl_pointcloud_render(){};
-    void read_pointcloud_fromfile(std::string map_filename);
+    bool read_pointcloud_fromfile(std::string map_filename);
     ~opengl_pointcloud_render();
     void setParameters(int width, int height, float fx, float fy, float downsample_res, float polar_res_, float yaw_fov_,\
                  float vertical_fov_,float near,float far,int sensing_rate,int use_avia_pattern, int use_os128_pattern, int use_minicf_pattern);
@@ -83,8 +83,9 @@ class opengl_pointcloud_render
     float u0 = width*0.5;
     float v0 = width*0.5;
     glm::mat4 projection, view;
-    unsigned int VBO, VAO, EBO;
-    GLFWwindow* window;
+    unsigned int VBO = 0, VAO = 0, EBO = 0;
+    GLFWwindow* window = nullptr;
+    bool initialized_ = false;
     Shader ourShader;
 
     int use_avia_pattern = 0;
@@ -272,13 +273,17 @@ void opengl_pointcloud_render::input_dyn_clouds(pcl::PointCloud<pcl::PointXYZI> 
 //     glViewport(0, 0, screen_width, screen_height);
 // }
 
-void opengl_pointcloud_render::read_pointcloud_fromfile(std::string map_filename){
+bool opengl_pointcloud_render::read_pointcloud_fromfile(std::string map_filename){
 
     // glfw: initialize and configure
     // ------------------------------
-    glfwInit();
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 6);
+    if (!glfwInit())
+    {
+        std::cerr << "Failed to initialize GLFW" << std::endl;
+        return false;
+    }
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 
     glfwWindowHint(GLFW_VISIBLE, GL_FALSE); // invisible window
@@ -292,9 +297,9 @@ void opengl_pointcloud_render::read_pointcloud_fromfile(std::string map_filename
     window = glfwCreateWindow(width, height, "Opengl_sim", NULL, NULL);
     if (window == NULL)
     {
-        std::cout << "Failed to create GLFW window" << std::endl;
+        std::cerr << "Failed to create GLFW window" << std::endl;
         glfwTerminate();
-        return ;
+        return false;
     }
     glfwMakeContextCurrent(window);
     // glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
@@ -308,8 +313,11 @@ void opengl_pointcloud_render::read_pointcloud_fromfile(std::string map_filename
     // ---------------------------------------
     if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress))
     {
-        std::cout << "Failed to initialize GLAD" << std::endl;
-        return ;
+        std::cerr << "Failed to initialize GLAD" << std::endl;
+        glfwDestroyWindow(window);
+        window = nullptr;
+        glfwTerminate();
+        return false;
     }
 
     // configure global opengl state
@@ -447,13 +455,22 @@ void opengl_pointcloud_render::read_pointcloud_fromfile(std::string map_filename
    
     
     ourShader.use();
+    initialized_ = true;
+    return true;
 }
 
 opengl_pointcloud_render::~opengl_pointcloud_render(){
 
-    glDeleteVertexArrays(1, &VAO);
-    glDeleteBuffers(1, &VBO);
-    
+    if (initialized_)
+    {
+        glDeleteVertexArrays(1, &VAO);
+        glDeleteBuffers(1, &VBO);
+    }
+    if (window != nullptr)
+    {
+        glfwDestroyWindow(window);
+        window = nullptr;
+    }
     glfwTerminate();
 }
 

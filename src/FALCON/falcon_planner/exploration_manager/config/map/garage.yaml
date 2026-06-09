@@ -1,0 +1,49 @@
+map_config:
+  map_file: ""
+  map_dimension: 3
+
+  # Initial position and orientation of the robot under the world frame
+  init_x: 15.0
+  init_y: 5.0
+  init_z: 2.0
+  init_yaw: 0.0
+
+  map_size:
+    # MARSIM PCD AABB: x[-5.13, 177.33], y[-4.60, 144.27], z[-0.03, 10.03]
+    # The PCD is large, so FALCON's voxel map is limited to a front local region.
+    map_min_x: -6.0
+    map_min_y: -6.0
+    map_min_z: -1.0
+    map_max_x: 80.0
+    map_max_y: 60.0
+    map_max_z: 11.0
+
+    # Size of the task bbox in meters
+    box_min_x: -3.0
+    box_min_y: -3.0
+    box_min_z: 0.2
+    box_max_x: 75.0
+    box_max_y: 55.0
+    box_max_z: 6.0
+
+    # Size of the visualization bbox in meters
+    vbox_min_x: -5.0
+    vbox_min_y: -5.0
+    vbox_min_z: 0.0
+    vbox_max_x: 78.0
+    vbox_max_y: 58.0
+    vbox_max_z: 6.5
+
+  scale: 1.0
+
+  T_b_c:
+  - [1.0, 0.0, 0.0, 0.0]
+  - [0.0, 1.0, 0.0, 0.0]
+  - [0.0, 0.0, 1.0, 0.0]
+  - [0.0, 0.0, 0.0, 1.0]
+
+  T_m_w:
+  - [1.0, 0.0, 0.0, 0.0]
+  - [0.0, 1.0, 0.0, 0.0]
+  - [0.0, 0.0, 1.0, 0.0]
+  - [0.0, 0.0, 0.0, 1.0]

@@ -677,6 +677,27 @@ void renderSensedPoints(const ros::TimerEvent& event)
     
 }
 
+void pubSensorPose(const ros::TimerEvent &e)
+{
+  if (!has_odom)
+    return;
+
+  Eigen::Quaternionf q;
+  q = sensor2world.block<3, 3>(0, 0);
+
+  geometry_msgs::PoseStamped sensor_pose;
+  sensor_pose.header = odom_.header;
+  sensor_pose.header.frame_id = "/map";
+  sensor_pose.pose.position.x = sensor2world(0, 3);
+  sensor_pose.pose.position.y = sensor2world(1, 3);
+  sensor_pose.pose.position.z = sensor2world(2, 3);
+  sensor_pose.pose.orientation.w = q.w();
+  sensor_pose.pose.orientation.x = q.x();
+  sensor_pose.pose.orientation.y = q.y();
+  sensor_pose.pose.orientation.z = q.z();
+  pub_pose.publish(sensor_pose);
+}
+
 int main(int argc, char** argv)
 {
   ros::init(argc, argv, "pcl_render");
@@ -788,7 +809,11 @@ int main(int argc, char** argv)
   image_height = ceil(vertical_fov/polar_resolution);
   render.setParameters(image_width,image_height,250,250,downsample_res,polar_resolution,yaw_fov,vertical_fov,0.1,sensing_horizon,sensing_rate,use_avia_pattern,use_os128_pattern,use_minicf_pattern);
 
-  render.read_pointcloud_fromfile(file_name);
+  if (!render.read_pointcloud_fromfile(file_name))
+  {
+    ROS_ERROR("Failed to initialize OpenGL renderer. Check DISPLAY/Wayland/X server and OpenGL support.");
+    return 1;
+  }
   //home/dji/kong_ws/src/Exploration_sim/uav_simulator/map_generator/resource/Knowles_merge_01cutoff.pcd
 // /home/dji/meshmap/Knowles_local_sor_001.pcd
 
@@ -918,8 +943,13 @@ int main(int argc, char** argv)
 
   t_init = ros::Time::now();
 
+  sensor2body << 0.0, 0.0, 1.0, 0.0,
+      -1.0, 0.0, 0.0, 0.0,
+      0.0, -1.0, 0.0, 0.0,
+      0.0, 0.0, 0.0, 1.0;
+
   local_sensing_timer = nh.createTimer(ros::Duration(sensing_duration), renderSensedPoints);
-//   pose_timer = nh.createTimer(ros::Duration(estimate_duration), pubSensorPose);
+  pose_timer = nh.createTimer(ros::Duration(estimate_duration), pubSensorPose);
   dynobj_timer = nh.createTimer(ros::Duration(sensing_duration), dynobjGenerate);
 
 //     pkg_path = ros::package::getPath("octomap_server");
@@ -937,9 +967,6 @@ int main(int argc, char** argv)
   pkg_path.append("/data/" + quad_name + "_GPU_collision_check_time_consumption.txt");
   std::cout << "\nFound pkg_path = " << pkg_path << std::endl;
   collision_checktime_file.open(pkg_path.c_str(), std::ios_base::out);
-
-
-//   sensor2body << 0.0, 0.0, 1.0, 0.0, -1.0, 0.0, 0.0, 0.0, 0.0, -1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0;
 
   ros::Rate rate(100);
   bool status = ros::ok();

@@ -11,3 +11,5 @@ __pycache__/
 .catkin_workspace
 .claude
 .codex
+src/MARSIM/cascadePID/data/*
+src/FALCON/falcon_planner/exploration_utils/resource/*

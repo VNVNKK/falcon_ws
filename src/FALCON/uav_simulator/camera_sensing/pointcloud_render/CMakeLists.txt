@@ -12,7 +12,7 @@ set(CMAKE_CXX_FLAGS_RELEASE "-O3 -Wall")
 find_package(CUDA REQUIRED)
 set(CUDA_NVCC_FLAGS ${CUDA_NVCC_FLAGS};-O3 -use_fast_math)
 set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS}" "--ptxas-options=-v")
-set(CUDA_NVCC_FLAGS -gencode arch=compute_61,code=sm_61;) # Titan Xp
+set(CUDA_NVCC_FLAGS -gencode arch=compute_120,code=sm_120;) # NVIDIA GeForce RTX 5060
 # set(CUDA_NVCC_FLAGS -gencode arch=compute_86,code=sm_86;) # 4090, sm_86 or sm_89 (CUDA 11.8+)
 set(CUDA_PROPAGATE_HOST_FLAGS OFF)
 
@@ -63,12 +63,13 @@ target_link_libraries(pointcloud_render
   ${PCL_LIBRARIES}
 )
 
-add_executable(pcl_render_node 
+add_executable(falcon_pcl_render_node
   # src/pcl_render_node.cpp
   src/pointcloud_render.cpp
   src/pointcloud_render_node.cpp
 )
-target_link_libraries(pcl_render_node 
+set_target_properties(falcon_pcl_render_node PROPERTIES OUTPUT_NAME pcl_render_node)
+target_link_libraries(falcon_pcl_render_node
   depth_render_cuda 
   ${OpenCV_LIBS}
   ${Boost_LIBRARIES}

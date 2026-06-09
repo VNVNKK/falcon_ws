@@ -6,7 +6,7 @@
   <arg name="sensor_pose_topic" value="/quad0_pcl_render_node/sensor_pose"/>
 
   <arg name="marsim_downsample_resolution" default="0.1"/>
-  <arg name="marsim_use_gpu" default="false"/>
+  <arg name="marsim_use_gpu" default="true"/>
   <arg name="marsim_use_uav_extra_model" default="0"/>
 
   <!-- Load parameter for modules -->
@@ -52,6 +52,123 @@
       <arg name="downsample_resolution" value="$(arg marsim_downsample_resolution)"/>
       <arg name="use_gpu" value="$(arg marsim_use_gpu)"/>
       <arg name="init_x" value="0.0"/>
+      <arg name="init_y" value="0.0"/>
+      <arg name="init_z" value="1.0"/>
+      <arg name="init_yaw" value="0.0"/>
+      <arg name="use_uav_extra_model" value="$(arg marsim_use_uav_extra_model)"/>
+    </include>
+  </group>
+
+  <group if="$(eval arg('map_name') == 'classical_office')">
+    <include file="$(find exploration_manager)/launch/marsim_mid360_single.launch">
+      <arg name="map_pcd" value="$(find map_render)/resource/classical_office.pcd"/>
+      <arg name="downsample_resolution" value="$(arg marsim_downsample_resolution)"/>
+      <arg name="use_gpu" value="$(arg marsim_use_gpu)"/>
+      <arg name="init_x" value="-6.0"/>
+      <arg name="init_y" value="0.0"/>
+      <arg name="init_z" value="1.0"/>
+      <arg name="init_yaw" value="0.0"/>
+      <arg name="use_uav_extra_model" value="$(arg marsim_use_uav_extra_model)"/>
+    </include>
+  </group>
+
+  <group if="$(eval arg('map_name') == 'cave')">
+    <include file="$(find exploration_manager)/launch/marsim_mid360_single.launch">
+      <arg name="map_pcd" value="$(find map_generator)/resource/cave.pcd"/>
+      <arg name="downsample_resolution" value="$(arg marsim_downsample_resolution)"/>
+      <arg name="use_gpu" value="$(arg marsim_use_gpu)"/>
+      <arg name="init_x" value="-30.0"/>
+      <arg name="init_y" value="-25.0"/>
+      <arg name="init_z" value="2.0"/>
+      <arg name="init_yaw" value="0.0"/>
+      <arg name="use_uav_extra_model" value="$(arg marsim_use_uav_extra_model)"/>
+    </include>
+  </group>
+
+  <group if="$(eval arg('map_name') == 'city')">
+    <include file="$(find exploration_manager)/launch/marsim_mid360_single.launch">
+      <arg name="map_pcd" value="$(find map_generator)/resource/city.pcd"/>
+      <arg name="downsample_resolution" value="$(arg marsim_downsample_resolution)"/>
+      <arg name="use_gpu" value="$(arg marsim_use_gpu)"/>
+      <arg name="init_x" value="2.0"/>
+      <arg name="init_y" value="0.0"/>
+      <arg name="init_z" value="2.0"/>
+      <arg name="init_yaw" value="0.0"/>
+      <arg name="use_uav_extra_model" value="$(arg marsim_use_uav_extra_model)"/>
+    </include>
+  </group>
+
+  <group if="$(eval arg('map_name') == 'garage')">
+    <include file="$(find exploration_manager)/launch/marsim_mid360_single.launch">
+      <arg name="map_pcd" value="$(find map_generator)/resource/garage.pcd"/>
+      <arg name="downsample_resolution" value="$(arg marsim_downsample_resolution)"/>
+      <arg name="use_gpu" value="$(arg marsim_use_gpu)"/>
+      <arg name="init_x" value="17.0"/>
+      <arg name="init_y" value="5.0"/>
+      <arg name="init_z" value="2.0"/>
+      <arg name="init_yaw" value="0.0"/>
+      <arg name="use_uav_extra_model" value="$(arg marsim_use_uav_extra_model)"/>
+    </include>
+  </group>
+
+  <group if="$(eval arg('map_name') == 'complex_office')">
+    <include file="$(find exploration_manager)/launch/marsim_mid360_single.launch">
+      <arg name="map_pcd" value="$(find map_render)/resource/complex_office.stl"/>
+      <arg name="downsample_resolution" value="$(arg marsim_downsample_resolution)"/>
+      <arg name="use_gpu" value="$(arg marsim_use_gpu)"/>
+      <arg name="init_x" value="0.0"/>
+      <arg name="init_y" value="0.0"/>
+      <arg name="init_z" value="1.0"/>
+      <arg name="init_yaw" value="0.0"/>
+      <arg name="use_uav_extra_model" value="$(arg marsim_use_uav_extra_model)"/>
+    </include>
+  </group>
+
+  <group if="$(eval arg('map_name') == 'darpa_tunnel')">
+    <include file="$(find exploration_manager)/launch/marsim_mid360_single.launch">
+      <arg name="map_pcd" value="$(find map_render)/resource/darpa_tunnel.pcd"/>
+      <arg name="downsample_resolution" value="$(arg marsim_downsample_resolution)"/>
+      <arg name="use_gpu" value="$(arg marsim_use_gpu)"/>
+      <arg name="init_x" value="0.0"/>
+      <arg name="init_y" value="0.0"/>
+      <arg name="init_z" value="1.0"/>
+      <arg name="init_yaw" value="0.0"/>
+      <arg name="use_uav_extra_model" value="$(arg marsim_use_uav_extra_model)"/>
+    </include>
+  </group>
+
+  <group if="$(eval arg('map_name') == 'duplex_office')">
+    <include file="$(find exploration_manager)/launch/marsim_mid360_single.launch">
+      <arg name="map_pcd" value="$(find map_render)/resource/duplex_office.stl"/>
+      <arg name="downsample_resolution" value="$(arg marsim_downsample_resolution)"/>
+      <arg name="use_gpu" value="$(arg marsim_use_gpu)"/>
+      <arg name="init_x" value="-9.0"/>
+      <arg name="init_y" value="0.0"/>
+      <arg name="init_z" value="1.0"/>
+      <arg name="init_yaw" value="0.0"/>
+      <arg name="use_uav_extra_model" value="$(arg marsim_use_uav_extra_model)"/>
+    </include>
+  </group>
+
+  <group if="$(eval arg('map_name') == 'octa_maze')">
+    <include file="$(find exploration_manager)/launch/marsim_mid360_single.launch">
+      <arg name="map_pcd" value="$(find map_render)/resource/octa_maze.stl"/>
+      <arg name="downsample_resolution" value="$(arg marsim_downsample_resolution)"/>
+      <arg name="use_gpu" value="$(arg marsim_use_gpu)"/>
+      <arg name="init_x" value="0.0"/>
+      <arg name="init_y" value="0.0"/>
+      <arg name="init_z" value="1.0"/>
+      <arg name="init_yaw" value="0.0"/>
+      <arg name="use_uav_extra_model" value="$(arg marsim_use_uav_extra_model)"/>
+    </include>
+  </group>
+
+  <group if="$(eval arg('map_name') == 'power_plant')">
+    <include file="$(find exploration_manager)/launch/marsim_mid360_single.launch">
+      <arg name="map_pcd" value="$(find map_render)/resource/power_plant.pcd"/>
+      <arg name="downsample_resolution" value="$(arg marsim_downsample_resolution)"/>
+      <arg name="use_gpu" value="$(arg marsim_use_gpu)"/>
+      <arg name="init_x" value="-6.0"/>
       <arg name="init_y" value="0.0"/>
       <arg name="init_z" value="1.0"/>
       <arg name="init_yaw" value="0.0"/>

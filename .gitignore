@@ -1,0 +1,11 @@
+.falcon_ws_git/
+build/
+devel/
+install/
+log/
+.catkin_tools/
+.ros/
+cmake-build-*/
+*~
+*.pyc
+__pycache__/

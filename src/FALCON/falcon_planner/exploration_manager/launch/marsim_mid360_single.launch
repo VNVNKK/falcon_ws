@@ -74,7 +74,7 @@
       <param name="quadrotor_name" value="quad_$(arg drone_id)"/>
       <param name="uav_num" value="$(arg drone_num)"/>
       <param name="is_360lidar" value="1"/>
-      <param name="sensing_horizon" value="15.0"/>
+      <param name="sensing_horizon" value="60.0"/>
       <param name="sensing_rate" value="10.0"/>
       <param name="estimation_rate" value="10.0"/>
       <param name="polar_resolution" value="0.2"/>

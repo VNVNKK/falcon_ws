@@ -114,6 +114,8 @@ public:
 
     int ccl_step_;
 
+    int max_cost_matrix_size_; // Max dimension for the cost matrix (0 = unlimited)
+
     double epsilon_ = 1e-4;
 
     void print() {
@@ -328,6 +330,7 @@ public:
     double unknown_penalty_factor_; // Penalty factor for unknown cells in astar cost calculation
     double hybrid_search_radius_;   // Radiusc cutoff for hybrid search
     int ccl_step_;                  // Step size for CCL
+    int max_cost_matrix_size_;      // Max dimension for the cost matrix (0 = unlimited)
   };
 
   HierarchicalGrid();

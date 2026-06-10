@@ -12,7 +12,7 @@
   <arg name="odom_topic" default="lidar_slam/odom"/>
   <arg name="use_uav_extra_model" default="0"/>
 
-  <node pkg="map_generator" name="map_pub" type="map_pub" output="screen" args="$(arg map_pcd)">
+  <node pkg="map_generator" name="map_pub" type="map_pub" output="log" args="$(arg map_pcd)">
     <param name="add_boundary" value="0"/>
     <param name="is_bridge" value="0"/>
     <param name="downsample_res" value="$(arg downsample_resolution)"/>
@@ -35,7 +35,7 @@
   </node>
 
   <node pkg="cascadePID" name="quad$(arg drone_id)_cascadePID_node" type="cascadePID_node"
-        output="screen">
+        output="log">
     <param name="drone_id" value="$(arg drone_id)"/>
     <remap from="~odom" to="/quad_$(arg drone_id)/$(arg odom_topic)"/>
     <remap from="~cmd_RPM" to="/quad_$(arg drone_id)/cmdRPM"/>
@@ -52,9 +52,8 @@
   </node>
 
   <node pkg="odom_visualization" name="quad$(arg drone_id)_odom_visualization"
-        type="odom_visualization" output="screen">
+        type="odom_visualization" output="log">
     <remap from="~odometry" to="/quad_$(arg drone_id)/$(arg odom_topic)"/>
-    <remap from="~cmd" to="/quad_$(arg drone_id)/planning/pos_cmd"/>
     <param name="color/a" value="1.0"/>
     <param name="color/r" value="0.0"/>
     <param name="color/g" value="1.0"/>
@@ -66,7 +65,7 @@
 
   <group if="$(arg use_gpu)">
     <node pkg="local_sensing_node" type="opengl_render_node"
-          name="quad$(arg drone_id)_pcl_render_node" output="screen" args="$(arg map_pcd)">
+          name="quad$(arg drone_id)_pcl_render_node" output="log" args="$(arg map_pcd)">
       <remap from="~global_map" to="/map_generator/global_cloud"/>
       <remap from="~odometry" to="/quad_$(arg drone_id)/$(arg odom_topic)"/>
 
@@ -74,10 +73,10 @@
       <param name="quadrotor_name" value="quad_$(arg drone_id)"/>
       <param name="uav_num" value="$(arg drone_num)"/>
       <param name="is_360lidar" value="1"/>
-      <param name="sensing_horizon" value="60.0"/>
-      <param name="sensing_rate" value="10.0"/>
+      <param name="sensing_horizon" value="20.0"/>
+      <param name="sensing_rate" value="5.0"/>
       <param name="estimation_rate" value="10.0"/>
-      <param name="polar_resolution" value="0.2"/>
+      <param name="polar_resolution" value="0.4"/>
       <param name="yaw_fov" value="360.0"/>
       <param name="vertical_fov" value="90.0"/>
       <param name="min_raylength" value="1.0"/>
@@ -104,7 +103,7 @@
 
   <group unless="$(arg use_gpu)">
     <node pkg="local_sensing_node" type="pcl_render_node"
-          name="quad$(arg drone_id)_pcl_render_node" output="screen">
+          name="quad$(arg drone_id)_pcl_render_node" output="log">
       <remap from="~global_map" to="/map_generator/global_cloud"/>
       <remap from="~odometry" to="/quad_$(arg drone_id)/$(arg odom_topic)"/>
 

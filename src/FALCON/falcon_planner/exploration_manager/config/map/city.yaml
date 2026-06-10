@@ -9,29 +9,29 @@ map_config:
   init_yaw: 0.0
 
   map_size:
-    # MARSIM PCD AABB: x[-19.96, 20.04], y[-20.76, 20.04], z[-0.04, 11.08]
-    map_min_x: -22.0
-    map_min_y: -22.0
+    # Real bounds (user-specified): x[-22, 22], y[-22, 22], z[-0.2, 3.8]
+    map_min_x: -23.0
+    map_min_y: -23.0
     map_min_z: -1.0
-    map_max_x: 22.0
-    map_max_y: 22.0
-    map_max_z: 12.0
+    map_max_x: 23.0
+    map_max_y: 23.0
+    map_max_z: 5.0
 
     # Size of the task bbox in meters
-    box_min_x: -18.0
-    box_min_y: -18.0
-    box_min_z: 0.2
-    box_max_x: 18.0
-    box_max_y: 18.0
-    box_max_z: 6.0
+    box_min_x: -22.0
+    box_min_y: -22.0
+    box_min_z: -0.2
+    box_max_x: 22.0
+    box_max_y: 22.0
+    box_max_z: 3.8
 
     # Size of the visualization bbox in meters
-    vbox_min_x: -20.0
-    vbox_min_y: -20.0
-    vbox_min_z: 0.0
-    vbox_max_x: 20.0
-    vbox_max_y: 20.0
-    vbox_max_z: 6.5
+    vbox_min_x: -22.5
+    vbox_min_y: -22.5
+    vbox_min_z: -0.4
+    vbox_max_x: 22.5
+    vbox_max_y: 22.5
+    vbox_max_z: 4.2
 
   scale: 1.0
 

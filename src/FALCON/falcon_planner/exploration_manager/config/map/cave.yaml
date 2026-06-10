@@ -9,30 +9,30 @@ map_config:
   init_yaw: 0.0
 
   map_size:
-    # MARSIM PCD AABB: x[-48.20, 175.75], y[-205.65, 123.42], z[-6.62, 33.42]
-    # The PCD is large, so FALCON's voxel map is limited to a local exploration window.
-    map_min_x: -50.0
-    map_min_y: -50.0
-    map_min_z: -2.0
-    map_max_x: 50.0
-    map_max_y: 50.0
-    map_max_z: 12.0
+    # Real PCD AABB (per EPIC config): x[-48.1, 176], y[-206, 124], z[-7.1, 34.1]
+    # Volume ~3e6 m^3, voxel_mapping will pick resolution_huge=0.4m to fit memory.
+    map_min_x: -49.0
+    map_min_y: -207.0
+    map_min_z: -8.0
+    map_max_x: 177.0
+    map_max_y: 125.0
+    map_max_z: 35.0
 
-    # Size of the task bbox in meters
-    box_min_x: -45.0
-    box_min_y: -45.0
-    box_min_z: 0.2
-    box_max_x: 45.0
-    box_max_y: 45.0
-    box_max_z: 6.0
+    # Size of the task bbox in meters (matches EPIC box_0)
+    box_min_x: -48.1
+    box_min_y: -206.0
+    box_min_z: -7.1
+    box_max_x: 176.0
+    box_max_y: 124.0
+    box_max_z: 34.1
 
     # Size of the visualization bbox in meters
-    vbox_min_x: -48.0
-    vbox_min_y: -48.0
-    vbox_min_z: 0.0
-    vbox_max_x: 48.0
-    vbox_max_y: 48.0
-    vbox_max_z: 6.5
+    vbox_min_x: -48.5
+    vbox_min_y: -206.5
+    vbox_min_z: -7.5
+    vbox_max_x: 176.5
+    vbox_max_y: 124.5
+    vbox_max_z: 34.5
 
   scale: 1.0
 

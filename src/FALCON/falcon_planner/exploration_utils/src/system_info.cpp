@@ -1,5 +1,16 @@
 #include "system_info.h"
 
+namespace {
+bool parseLong(const std::string &value, long &result) {
+  try {
+    result = std::stol(value);
+    return true;
+  } catch (const std::exception &) {
+    return false;
+  }
+}
+} // namespace
+
 void printSystemInfo(std::string &output) {
   std::stringstream ss;
   ss << "|---------------------------------- System Info ----------------------------------|"
@@ -44,33 +55,53 @@ void printSystemInfo(std::string &output) {
     std::cerr << "Unable to open /proc/meminfo" << std::endl;
   }
 
-  ss << "Memory Total: " << std::stol(mem_total) / 1024.0 / 1024.0 << " GB" << std::endl;
-  ss << "Memory Free: " << std::stol(mem_free) / 1024.0 / 1024.0 << " GB" << std::endl;
+  long mem_total_kb, mem_free_kb;
+  if (parseLong(mem_total, mem_total_kb))
+    ss << "Memory Total: " << mem_total_kb / 1024.0 / 1024.0 << " GB" << std::endl;
+  else
+    ss << "Memory Total: unavailable" << std::endl;
+
+  if (parseLong(mem_free, mem_free_kb))
+    ss << "Memory Free: " << mem_free_kb / 1024.0 / 1024.0 << " GB" << std::endl;
+  else
+    ss << "Memory Free: unavailable" << std::endl;
 
   // gpu info
   std::string gpu_name, gpu_mem_total, gpu_mem_free;
   std::string command =
-      "nvidia-smi --query-gpu=name,memory.total,memory.free --format=csv,noheader";
+      "nvidia-smi --query-gpu=name,memory.total,memory.free --format=csv,noheader 2>/dev/null";
   FILE *fp = popen(command.c_str(), "r");
   if (fp == NULL) {
     std::cerr << "Failed to run command nvidia-smi" << std::endl;
+  } else {
+    char buffer[1024];
+    while (fgets(buffer, sizeof(buffer), fp) != NULL) {
+      std::string line(buffer);
+      size_t pos = line.find(",");
+      if (pos == std::string::npos)
+        continue;
+      gpu_name = line.substr(0, pos);
+      line = line.substr(pos + 1);
+      pos = line.find(",");
+      if (pos == std::string::npos)
+        continue;
+      gpu_mem_total = line.substr(0, pos);
+      gpu_mem_free = line.substr(pos + 1);
+    }
+    pclose(fp);
   }
 
-  char buffer[1024];
-  while (fgets(buffer, sizeof(buffer), fp) != NULL) {
-    std::string line(buffer);
-    size_t pos = line.find(",");
-    gpu_name = line.substr(0, pos);
-    line = line.substr(pos + 1);
-    pos = line.find(",");
-    gpu_mem_total = line.substr(0, pos);
-    gpu_mem_free = line.substr(pos + 1);
-  }
-  pclose(fp);
+  long gpu_mem_total_mb, gpu_mem_free_mb;
+  ss << "GPU Name: " << (gpu_name.empty() ? "unavailable" : gpu_name) << std::endl;
+  if (parseLong(gpu_mem_total, gpu_mem_total_mb))
+    ss << "GPU Memory Total: " << gpu_mem_total_mb / 1024.0 << " GB" << std::endl;
+  else
+    ss << "GPU Memory Total: unavailable" << std::endl;
 
-  ss << "GPU Name: " << gpu_name << std::endl;
-  ss << "GPU Memory Total: " << std::stol(gpu_mem_total) / 1024.0 << " GB" << std::endl;
-  ss << "GPU Memory Free: " << std::stol(gpu_mem_free) / 1024.0 << " GB" << std::endl;
+  if (parseLong(gpu_mem_free, gpu_mem_free_mb))
+    ss << "GPU Memory Free: " << gpu_mem_free_mb / 1024.0 << " GB" << std::endl;
+  else
+    ss << "GPU Memory Free: unavailable" << std::endl;
 
   ss << "|---------------------------------------------------------------------------------|"
             << std::endl;

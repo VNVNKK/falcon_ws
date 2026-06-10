@@ -1,7 +1,8 @@
 voxel_mapping:
   mode: "uav_simulator"
   resolution_fine: 0.1 # meters, box_volume < 4000.0 m^3
-  resolution_coarse: 0.2 # meters, box_volume > 4000.0 m^3
+  resolution_coarse: 0.2 # meters, 4000.0 m^3 < box_volume < 200000.0 m^3
+  resolution_huge: 0.4 # meters, box_volume > 200000.0 m^3 (e.g. cave EPIC box ~3e6 m^3)
 
   depth_filter_margin: 0
   depth_scaling_factor: 1000.0
@@ -16,9 +17,9 @@ voxel_mapping:
   publish_tsdf_slice: true
   publish_esdf_slice: true
   publish_occupancy_grid_slice: true
-  publish_tsdf_period: true
-  publish_esdf_period: true
-  publish_occupancy_grid_period: true
+  publish_tsdf_period: 2.0
+  publish_esdf_period: 2.0
+  publish_occupancy_grid_period: 1.0
   tsdf_slice_height: 0.5
   tsdf_slice_visualization_height: 0.5
   esdf_slice_height: 1.0

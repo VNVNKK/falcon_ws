@@ -1968,257 +1968,177 @@ void UniformGrid::calculateCostMatrixSingleThread(
     std::map<int, std::pair<int, int>> &cost_mat_id_to_cell_center_id) {
   // ROS_INFO("[UniformGrid] Calculate cost matrix using multi-threading");
 
-  int dim = 1;     // current position
-  int mat_idx = 1; // skip 0 as it is reserved for current position
+  // Flatten all candidate centers (free + unknown) across all cells into a single list.
+  // This lets us cap the matrix dimension by selecting only the closest K candidates to cur_pos
+  // when the total exceeds the configured limit.
+  struct CandidateCenter {
+    Position pos;
+    int cell_id;
+    int local_idx;       // Local index inside (free_active + unknown_active) for the cell
+    bool is_free;        // true: free center; false: unknown center
+    int active_idx;      // Value of centers_*_active_idx_[i] (used to build CG node id)
+    double dist_to_cur;  // Euclidean distance to cur_pos, used for K-nearest selection
+  };
+
+  std::vector<CandidateCenter> candidates;
+  candidates.reserve(uniform_grid_.size() * 4);
 
   for (const GridCell &grid_cell : uniform_grid_) {
-    // Only free subspaces and unknown subspaces are considered in CP
-    dim += grid_cell.centers_free_active_.size();
-    dim += grid_cell.centers_unknown_active_.size();
+    const int cell_id = grid_cell.id_;
+    const int free_size = (int)grid_cell.centers_free_active_.size();
+    const int unknown_size = (int)grid_cell.centers_unknown_active_.size();
 
-    int cell_id = grid_cell.id_;
-
-    // Cell center index: starting from free centers, then unknown centers
-    for (int i = 0; i < (int)grid_cell.centers_free_active_.size(); i++) {
-      cost_mat_id_to_cell_center_id[mat_idx] = std::make_pair(cell_id, i);
-      mat_idx++;
+    for (int i = 0; i < free_size; ++i) {
+      CandidateCenter c;
+      c.pos = grid_cell.centers_free_active_[i];
+      c.cell_id = cell_id;
+      c.local_idx = i;
+      c.is_free = true;
+      c.active_idx = grid_cell.centers_free_active_idx_[i];
+      c.dist_to_cur = (cur_pos - c.pos).norm();
+      candidates.push_back(c);
     }
-
-    for (int i = 0; i < (int)grid_cell.centers_unknown_active_.size(); i++) {
-      cost_mat_id_to_cell_center_id[mat_idx] =
-          std::make_pair(cell_id, i + grid_cell.centers_free_active_.size());
-      mat_idx++;
+    for (int i = 0; i < unknown_size; ++i) {
+      CandidateCenter c;
+      c.pos = grid_cell.centers_unknown_active_[i];
+      c.cell_id = cell_id;
+      c.local_idx = i + free_size;
+      c.is_free = false;
+      c.active_idx = grid_cell.centers_unknown_active_idx_[i];
+      c.dist_to_cur = (cur_pos - c.pos).norm();
+      candidates.push_back(c);
     }
+  }
+
+  // Cap the cost matrix size: keep only the K nearest centers to the current position.
+  // Rationale: the planner replans frequently, so far-away tour points will be revisited
+  // in later replanning cycles anyway. This avoids O(N^2) matrix blow-up on large maps
+  // (e.g. city) where the unbounded matrix can reach 10^4 in size and stall the FSM.
+  if (config_.max_cost_matrix_size_ > 0 &&
+      (int)candidates.size() > config_.max_cost_matrix_size_ - 1) {
+    const int keep = config_.max_cost_matrix_size_ - 1; // reserve slot 0 for cur_pos
+    std::nth_element(candidates.begin(), candidates.begin() + keep, candidates.end(),
+                     [](const CandidateCenter &a, const CandidateCenter &b) {
+                       return a.dist_to_cur < b.dist_to_cur;
+                     });
+    candidates.resize(keep);
+
+    ROS_WARN("[UniformGrid] Cost matrix candidates capped to %d (max_cost_matrix_size=%d). "
+             "Far-away tour points will be considered in later replans.",
+             keep, config_.max_cost_matrix_size_);
+  }
+
+  // Stable ordering so cost_mat_id_to_cell_center_id remains deterministic across replans.
+  std::sort(candidates.begin(), candidates.end(),
+            [](const CandidateCenter &a, const CandidateCenter &b) {
+              if (a.cell_id != b.cell_id)
+                return a.cell_id < b.cell_id;
+              return a.local_idx < b.local_idx;
+            });
+
+  const int dim = 1 + (int)candidates.size(); // slot 0 for cur_pos
+  for (int k = 0; k < (int)candidates.size(); ++k) {
+    cost_mat_id_to_cell_center_id[k + 1] =
+        std::make_pair(candidates[k].cell_id, candidates[k].local_idx);
   }
 
   cost_matrix = Eigen::MatrixXd::Zero(dim, dim);
 
-  // From current position to all zone centers
-  mat_idx = 1;
-  for (const GridCell &grid_cell : uniform_grid_) {
-    double cost = 0.0;
-    for (const Position &center_free : grid_cell.centers_free_active_) {
-      if ((cur_pos - center_free).norm() > config_.hybrid_search_radius_) {
-        cost = 1000.0 + (cur_pos - center_free).norm();
-        // pair<int, int> cell_id_center_id_pair = cost_mat_id_to_cell_center_id[mat_idx];
-        // int end_id = cell_id_center_id_pair.first * 10 + cell_id_center_id_pair.second;
+  auto buildCgNodeId = [](const CandidateCenter &c, const GridCell &cell) {
+    // Mirrors the original cell_center_id encoding (cell_id * 10 + offset) used by the
+    // connectivity graph. Returns (-1, true) when this center has no CG node and we must
+    // fall back to euclidean cost.
+    int cg_id = -1;
+    bool no_cg_search = false;
+    if (c.is_free) {
+      if (c.active_idx == -1) {
+        cg_id = c.cell_id * 10 + 0;
+        no_cg_search = true;
       } else {
-        cost = getAStarCostYaw(cur_pos, center_free, cur_vel, 0.0, 0.0);
-        // if (cost > 499.0) {
-        //   ROS_ERROR("[UniformGrid] Cost from current position to cell %d free center (%.2f, %.2f,
-        //   "
-        //             "%.2f) is high (unreachable)",
-        //             grid_cell.id_, center_free.x(), center_free.y(), center_free.z());
-        // }
+        cg_id = c.cell_id * 10 + c.active_idx;
       }
+    } else {
+      cg_id = c.cell_id * 10 + c.active_idx + (int)cell.centers_free_.size();
+    }
+    return std::make_pair(cg_id, no_cg_search);
+  };
 
-      // Add long distance panelty
-      // if ((cur_pos - center_free).norm() > 5.0) {
-      //   cost = cost * (cur_pos - center_free).norm() / 5.0;
-      // }
-
-      cost_matrix(0, mat_idx) = cost;
-
-      CHECK_GT(cost, 1e-4) << "Zero cost from current position to cell " << grid_cell.id_
-                           << " free center " << mat_idx - 1;
-      // cost_matrix(mat_idx, 0) = 0 for ATSP
-
-      mat_idx++;
+  // From current position to all candidate centers (column 0 in ATSP form)
+  for (int k = 0; k < (int)candidates.size(); ++k) {
+    const CandidateCenter &c = candidates[k];
+    double cost = 0.0;
+    if (c.is_free) {
+      if ((cur_pos - c.pos).norm() > config_.hybrid_search_radius_) {
+        cost = 1000.0 + (cur_pos - c.pos).norm();
+      } else {
+        cost = getAStarCostYaw(cur_pos, c.pos, cur_vel, 0.0, 0.0);
+      }
+    } else {
+      // Next zone should NOT be unknown -- keep the original heavy penalty
+      cost = (1000.0 + (cur_pos - c.pos).norm()) * config_.unknown_penalty_factor_;
     }
 
-    for (const Position &center_unknown : grid_cell.centers_unknown_active_) {
-      // Next zone should NOT be unknown
-      cost = 1000.0 + (cur_pos - center_unknown).norm();
+    cost_matrix(0, k + 1) = cost;
 
-      cost_matrix(0, mat_idx) = cost * config_.unknown_penalty_factor_;
-      // cost_matrix(mat_idx, 0) = 0 for ATSP
-
-      CHECK_GT(cost, 1e-4) << "Zero cost from current position to cell " << grid_cell.id_
-                           << " free center " << mat_idx - 1;
-
-      mat_idx++;
-    }
+    CHECK_GT(cost, 1e-4) << "Zero cost from current position to cell " << c.cell_id
+                         << " center " << c.local_idx;
   }
 
-  // Between all zone centers
-  int mat_idx1 = 1;
-  for (const GridCell &grid_cell1 : uniform_grid_) {
-    // centers_free_active_ and centers_unknown_active_ of grid_cell1
-    vector<Position> centers1;
-    // centers1 centers_free_active_
-    centers1.insert(centers1.end(), grid_cell1.centers_free_active_.begin(),
-                    grid_cell1.centers_free_active_.end());
-    // centers1 centers_unknown_active_
-    centers1.insert(centers1.end(), grid_cell1.centers_unknown_active_.begin(),
-                    grid_cell1.centers_unknown_active_.end());
+  // Between all candidate centers
+  for (int i = 0; i < (int)candidates.size(); ++i) {
+    const CandidateCenter &ci = candidates[i];
+    const GridCell &celli = uniform_grid_[ci.cell_id];
+    auto idi = buildCgNodeId(ci, celli);
 
-    // Iterate over all centers in the grid_cell1
-    for (int i = 0; i < (int)centers1.size(); i++) {
-      int mat_idx2 = 1;
-      // Iterate over all centers in the grid_cell2
-      for (const GridCell &grid_cell2 : uniform_grid_) {
-        // centers_free_active_ and centers_unknown_active_ of grid_cell2
-        vector<Position> centers2;
-        // centers2 centers_free_active_
-        centers2.insert(centers2.end(), grid_cell2.centers_free_active_.begin(),
-                        grid_cell2.centers_free_active_.end());
-        // centers2 centers_unknown_active_
-        centers2.insert(centers2.end(), grid_cell2.centers_unknown_active_.begin(),
-                        grid_cell2.centers_unknown_active_.end());
+    for (int j = i + 1; j < (int)candidates.size(); ++j) {
+      const CandidateCenter &cj = candidates[j];
+      const GridCell &cellj = uniform_grid_[cj.cell_id];
+      auto idj = buildCgNodeId(cj, cellj);
 
-        // Iterate over all centers in the grid_cell2
-        for (int j = 0; j < (int)centers2.size(); j++) {
-          // Skip half of the matrix
-          if (mat_idx2 <= mat_idx1) {
-            mat_idx2++;
-            continue;
-          }
+      const bool no_cg_search = idi.second || idj.second;
+      const int cell_center_id1 = idi.first;
+      const int cell_center_id2 = idj.first;
 
-          double cost = 0.0;
-          int cell_center_id1 = -1, cell_center_id2 = -1;
-          bool no_cg_search = false;
-          if (i < (int)grid_cell1.centers_free_active_.size()) {
-            if (grid_cell1.centers_free_active_idx_[i] == -1) {
-              cell_center_id1 = grid_cell1.id_ * 10 + 0;
-              no_cg_search = true;
-            } else {
-              cell_center_id1 = grid_cell1.id_ * 10 + grid_cell1.centers_free_active_idx_[i];
-            }
+      double cost = 0.0;
+      const double euclid = (ci.pos - cj.pos).norm();
+
+      if (euclid > config_.hybrid_search_radius_) {
+        if (no_cg_search) {
+          cost = 1000.0 + euclid;
+        } else {
+          std::vector<int> path;
+          cost = connectivity_graph_->searchConnectivityGraphBFS(cell_center_id1, cell_center_id2,
+                                                                 path);
+          CHECK_GT(cost, 1e-4)
+              << "Zero cost from cell " << ci.cell_id << " center " << ci.local_idx
+              << " to cell " << cj.cell_id << " center " << cj.local_idx;
+        }
+      } else {
+        cost = getAStarCostYaw(ci.pos, cj.pos, Eigen::Vector3d::Zero(), 0.0, 0.0);
+        if (cost > 499.0) {
+          if (no_cg_search) {
+            cost = 1000.0 + euclid;
           } else {
-            cell_center_id1 =
-                grid_cell1.id_ * 10 +
-                grid_cell1.centers_unknown_active_idx_[i - grid_cell1.centers_free_active_.size()] +
-                grid_cell1.centers_free_.size();
+            std::vector<int> path;
+            cost = connectivity_graph_->searchConnectivityGraphBFS(cell_center_id1,
+                                                                   cell_center_id2, path);
+            CHECK_GT(cost, 1e-4)
+                << "Zero cost from cell " << ci.cell_id << " center " << ci.local_idx
+                << " to cell " << cj.cell_id << " center " << cj.local_idx;
           }
-
-          if (j < (int)grid_cell2.centers_free_active_.size()) {
-            if (grid_cell2.centers_free_active_idx_[j] == -1) {
-              cell_center_id2 = grid_cell2.id_ * 10 + 0;
-              no_cg_search = true;
-            } else {
-              cell_center_id2 = grid_cell2.id_ * 10 + grid_cell2.centers_free_active_idx_[j];
-            }
-          } else {
-            cell_center_id2 =
-                grid_cell2.id_ * 10 +
-                grid_cell2.centers_unknown_active_idx_[j - grid_cell2.centers_free_active_.size()] +
-                grid_cell2.centers_free_.size();
-          }
-
-          CHECK_GE(cell_center_id1, 0) << "cell_center_id1: " << cell_center_id1;
-          CHECK_GE(cell_center_id2, 0) << "cell_center_id2: " << cell_center_id2;
-
-          if ((centers1[i] - centers2[j]).norm() > config_.hybrid_search_radius_) {
-            if (no_cg_search) {
-              // Invalid cell center id, use a large cost instead of CG search
-              cost = 1000.0 + (centers1[i] - centers2[j]).norm();
-            } else {
-              std::vector<int> path;
-              cost = connectivity_graph_->searchConnectivityGraphBFS(cell_center_id1,
-                                                                     cell_center_id2, path);
-              CHECK_GT(cost, 1e-4) << "Zero cost from cell " << grid_cell1.id_ << " center " << i
-                                   << " to cell " << grid_cell2.id_ << " center " << j;
-            }
-          } else {
-            cost = getAStarCostYaw(centers1[i], centers2[j], Eigen::Vector3d::Zero(), 0.0, 0.0);
-            if (cost > 499.0) {
-              // Try CG search
-              if (no_cg_search) {
-                cost = 1000.0 + (centers1[i] - centers2[j]).norm();
-              } else {
-                std::vector<int> path;
-                cost = connectivity_graph_->searchConnectivityGraphBFS(cell_center_id1,
-                                                                       cell_center_id2, path);
-                CHECK_GT(cost, 1e-4) << "Zero cost from cell " << grid_cell1.id_ << " center " << i
-                                     << " to cell " << grid_cell2.id_ << " center " << j;
-              }
-              if (cost < 1e-6) {
-                // DEBUG output and check
-                // print cell_center_id1 and cell_center_id2
-                std::cout << "cell_center_id1: " << cell_center_id1
-                          << ", cell_center_id2: " << cell_center_id2 << std::endl;
-                // print grid_cell1.id_ and grid_cell2.id_
-                std::cout << "grid_cell1.id_: " << grid_cell1.id_ << ", center id: " << i
-                          << ", grid_cell2.id_: " << grid_cell2.id_ << ", center id: " << j
-                          << std::endl;
-                // print grid_cell1.centers_free_active_.size()
-                std::cout << "grid_cell1.centers_free_active_.size(): "
-                          << grid_cell1.centers_free_active_.size() << std::endl;
-                // print grid_cell1.centers_free_active_idx_
-                std::cout << "grid_cell1.centers_free_active_idx_: ";
-                for (int i = 0; i < grid_cell1.centers_free_active_idx_.size(); i++) {
-                  std::cout << grid_cell1.centers_free_active_idx_[i] << " ";
-                }
-                std::cout << std::endl;
-                // print grid_cell1.centers_unknown_active_idx_
-                std::cout << "grid_cell1.centers_unknown_active_idx_: ";
-                for (int i = 0; i < grid_cell1.centers_unknown_active_idx_.size(); i++) {
-                  std::cout << grid_cell1.centers_unknown_active_idx_[i] << " ";
-                }
-                std::cout << std::endl;
-                // print grid_cell2.centers_free_active_.size()
-                std::cout << "grid_cell2.centers_free_active_.size(): "
-                          << grid_cell2.centers_free_active_.size() << std::endl;
-                // print grid_cell2.centers_free_active_idx_
-                std::cout << "grid_cell2.centers_free_active_idx_: ";
-                for (int i = 0; i < grid_cell2.centers_free_active_idx_.size(); i++) {
-                  std::cout << grid_cell2.centers_free_active_idx_[i] << " ";
-                }
-                std::cout << std::endl;
-                // print grid_cell2.centers_unknown_active_idx_
-                std::cout << "grid_cell2.centers_unknown_active_idx_: ";
-                for (int i = 0; i < grid_cell2.centers_unknown_active_idx_.size(); i++) {
-                  std::cout << grid_cell2.centers_unknown_active_idx_[i] << " ";
-                }
-                std::cout << std::endl;
-
-                CHECK(false) << "Cost from cell " << grid_cell1.id_ << " center " << i
-                             << " to cell " << grid_cell2.id_ << " center " << j
-                             << " is high (unreachable) using A* but zero using CG, CG cost: "
-                             << cost;
-              }
-
-              // if (cost > 499.0) {
-              //   ROS_ERROR(
-              //       "[UniformGrid] Cost from cell %d center (%.2f, %.2f, %.2f) to cell %d center
-              //       "
-              //       "(%.2f, %.2f, %.2f) is high (unreachable)",
-              //       grid_cell1.id_, centers1[i].x(), centers1[i].y(), centers1[i].z(),
-              //       grid_cell2.id_, centers2[j].x(), centers2[j].y(), centers2[j].z());
-              // } else {
-              //   ROS_WARN(
-              //       "[UniformGrid] Cost from cell %d center (%.2f, %.2f, %.2f) to cell %d center
-              //       "
-              //       "(%.2f, %.2f, %.2f) is high (unreachable) using A* but reachable using CG, CG
-              //       " "cost: %f", grid_cell1.id_, centers1[i].x(), centers1[i].y(),
-              //       centers1[i].z(), grid_cell2.id_, centers2[j].x(), centers2[j].y(),
-              //       centers2[j].z(), cost);
-              // }
-            }
-          }
-
-          if (i >= (int)grid_cell1.centers_free_active_.size() ||
-              j >= (int)grid_cell2.centers_free_active_.size()) {
-            cost *= config_.unknown_penalty_factor_;
-            // ROS_INFO("[UniformGrid] penalize unknown center, new cost: %f", cost);
-          }
-
-          // Add long distance panelty
-          // if ((centers1[i] - centers2[j]).norm() > 5.0) {
-          //   cost = cost * (centers1[i] - centers2[j]).norm() / 5.0;
-          // }
-
-          cost_matrix(mat_idx1, mat_idx2) = cost_matrix(mat_idx2, mat_idx1) = cost;
-
-          CHECK_GT(cost, 1e-6) << "Zero cost from cell " << grid_cell1.id_ << " center " << i
-                               << " pos (" << centers1[i].x() << ", " << centers1[i].y() << ", "
-                               << centers1[i].z() << ") to cell " << grid_cell2.id_ << " center "
-                               << j << " pos (" << centers2[j].x() << ", " << centers2[j].y()
-                               << ", " << centers2[j].z() << ")";
-          mat_idx2++;
         }
       }
-      mat_idx1++;
+
+      if (!ci.is_free || !cj.is_free) {
+        cost *= config_.unknown_penalty_factor_;
+      }
+
+      cost_matrix(i + 1, j + 1) = cost_matrix(j + 1, i + 1) = cost;
+
+      CHECK_GT(cost, 1e-6) << "Zero cost from cell " << ci.cell_id << " center " << ci.local_idx
+                           << " pos (" << ci.pos.x() << ", " << ci.pos.y() << ", " << ci.pos.z()
+                           << ") to cell " << cj.cell_id << " center " << cj.local_idx << " pos ("
+                           << cj.pos.x() << ", " << cj.pos.y() << ", " << cj.pos.z() << ")";
     }
   }
 }
@@ -2445,6 +2365,7 @@ HierarchicalGrid::HierarchicalGrid(ros::NodeHandle &nh, voxel_mapping::MapServer
 
   nh.param("/exploration_manager/hybrid_search_radius", config_.hybrid_search_radius_, 10.0);
   nh.param("/exploration_manager/unknown_penalty_factor", config_.unknown_penalty_factor_, 2.0);
+  nh.param("/hgrid/max_cost_matrix_size", config_.max_cost_matrix_size_, 300);
 
   // ream map dim
   int map_dim = 0;
@@ -2530,6 +2451,7 @@ HierarchicalGrid::HierarchicalGrid(ros::NodeHandle &nh, voxel_mapping::MapServer
     ug_config.unknown_penalty_factor_ = config_.unknown_penalty_factor_;
     ug_config.hybrid_search_radius_ = config_.hybrid_search_radius_;
     ug_config.ccl_step_ = config_.ccl_step_;
+    ug_config.max_cost_matrix_size_ = config_.max_cost_matrix_size_;
     ug_config.verbose_ = config_.verbose_;
 
     if (config_.verbose_)

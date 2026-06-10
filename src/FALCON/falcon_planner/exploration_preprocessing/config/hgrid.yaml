@@ -1,6 +1,7 @@
 hgrid:
   num_levels: 1
-  cell_size_max: 5.0
+  cell_size_max: 8.0
   min_unknown_num_scale: 0.1
   ccl_step: 2
+  max_cost_matrix_size: 50
   verbose: false

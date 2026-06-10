@@ -11,6 +11,8 @@ MapServer::MapServer(ros::NodeHandle &nh) {
   MapConfig &map_config = tsdf_->map_config_;
   nh.param("/voxel_mapping/resolutionf_fine", map_config.resolution_fine_, 0.1);
   nh.param("/voxel_mapping/resolution_coarse", map_config.resolution_coarse_, 0.2);
+  double resolution_huge = 0.4;
+  nh.param("/voxel_mapping/resolution_huge", resolution_huge, 0.4);
 
   vector<string> axis = {"x", "y", "z"};
   for (int i = 0; i < 3; ++i) {
@@ -40,8 +42,12 @@ MapServer::MapServer(ros::NodeHandle &nh) {
   double box_volume = (map_config.box_max_ - map_config.box_min_).prod();
   if (box_volume < 4000.0) {
     map_config.resolution_ = map_config.resolution_fine_;
-  } else {
+  } else if (box_volume < 200000.0) {
     map_config.resolution_ = map_config.resolution_coarse_;
+  } else {
+    map_config.resolution_ = resolution_huge;
+    ROS_WARN("[MapServer] Huge box volume %.1f m^3, using resolution %.2f m to keep memory in check",
+             box_volume, map_config.resolution_);
   }
   map_config.resolution_inv_ = 1 / map_config.resolution_;
 
@@ -198,8 +204,14 @@ MapServer::MapServer(ros::NodeHandle &nh) {
       nh.advertiseService("/voxel_mapping/save_map_pcd", &MapServer::saveMapPCDCallback, this);
 
   // Initialize timer
+  // Use the max of the configured publish periods so the timer is no faster than
+  // the most frequent publish actually requested. Falls back to 1.0s for large maps.
+  double publish_period = std::max({config_.publish_tsdf_period_,
+                                    config_.publish_esdf_period_,
+                                    config_.publish_occupancy_grid_period_});
+  if (publish_period < 1e-3) publish_period = 1.0;
   publish_map_timer_ =
-      nh.createTimer(ros::Duration(0.5), &MapServer::publishMapTimerCallback, this);
+      nh.createTimer(ros::Duration(publish_period), &MapServer::publishMapTimerCallback, this);
 
   if (config_.verbose_) {
     ROS_INFO("[MapServer] Voxel mapping server initialized with parameters: ");
@@ -815,6 +827,9 @@ void MapServer::publishDebugVisualizationBBox(const Position &bbox_min, const Po
 }
 
 void MapServer::publishMapCoverage() {
+  if (map_coverage_pub_.getNumSubscribers() == 0)
+    return;
+
   std_msgs::Float32 msg;
   int map_coverage_num = 0;
   for (int x = occupancy_grid_->map_config_.box_min_idx_.x();

@@ -643,7 +643,10 @@ void MapServer::publishOccupancyGrid() {
 }
 
 void MapServer::publishOccupancyGridHighResolution() {
-  // Publish occupancy grid with high resolution, e.g. 0.1m
+  // 之前每个 voxel 会按 (resolution/0.1)^3 展开成多个 RViz 点（0.2m -> ×8，0.4m -> ×64），
+  // 在大地图下单条 PointCloud2 体积达数百 MB，序列化阻塞主 spinner，导致规划链路停摆。
+  // 这里改为每个 voxel 只发它的中心点；视觉上 RViz 用 Box/Cube 渲染时按 resolution 自适应，
+  // 不影响识别遮挡 / 已知区域。
   if (occupancy_grid_occupied_pub_.getNumSubscribers() == 0 &&
       occupancy_grid_free_pub_.getNumSubscribers() == 0 &&
       occupancy_grid_unknown_pub_.getNumSubscribers() == 0)
@@ -654,9 +657,6 @@ void MapServer::publishOccupancyGridHighResolution() {
 
   PointCloudType pointcloud_occupied, pointcloud_free, pointcloud_unknown;
   PointType point;
-
-  double map_resolution = getResolution();
-  int scale = round(map_resolution / 0.1);
 
   for (int x = tsdf_->map_config_.vbox_min_idx_[0]; x < tsdf_->map_config_.vbox_max_idx_[0]; ++x) {
     for (int y = tsdf_->map_config_.vbox_min_idx_[1]; y < tsdf_->map_config_.vbox_max_idx_[1];
@@ -669,34 +669,12 @@ void MapServer::publishOccupancyGridHighResolution() {
         point.y = pos(1);
         point.z = pos(2);
 
-        // Expanded point to high resolution
-        vector<PointType> points;
-        PointType p1;
-        p1.x = point.x - 0.05 * (scale - 1);
-        p1.y = point.y - 0.05 * (scale - 1);
-        p1.z = point.z - 0.05 * (scale - 1);
-        for (int i = 0; i < scale; i++) {
-          for (int j = 0; j < scale; j++) {
-            for (int k = 0; k < scale; k++) {
-              PointType p2 = p1;
-              p2.x += 0.1 * i;
-              p2.y += 0.1 * j;
-              p2.z += 0.1 * k;
-              points.push_back(p2);
-            }
-          }
-        }
-
-        // unknown or cleared voxel
         if (occupancy_grid_->getVoxel(idx).value == OccupancyType::OCCUPIED) {
-          for (auto p : points)
-            pointcloud_occupied.points.push_back(p);
+          pointcloud_occupied.points.push_back(point);
         } else if (occupancy_grid_->getVoxel(idx).value == OccupancyType::FREE) {
-          for (auto p : points)
-            pointcloud_free.points.push_back(p);
+          pointcloud_free.points.push_back(point);
         } else if (occupancy_grid_->getVoxel(idx).value == OccupancyType::UNKNOWN) {
-          for (auto p : points)
-            pointcloud_unknown.points.push_back(p);
+          pointcloud_unknown.points.push_back(point);
         }
       }
     }

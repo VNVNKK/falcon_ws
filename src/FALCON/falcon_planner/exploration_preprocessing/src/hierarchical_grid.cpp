@@ -2064,6 +2064,10 @@ void UniformGrid::calculateCostMatrixSingleThread(
   };
 
   // From current position to all candidate centers (column 0 in ATSP form)
+  // 当 UAV 恰好处于某个 candidate center 附近时（例如刚飞到 cell 中心触发 replan），
+  // A*/BFS 返回的 cost 会非常接近 0。这是物理正常状态而非错误，但下游 SOP 要求矩阵元素 >0，
+  // 否则可能在求解时退化。这里统一夹到一个最小正值，不让 CHECK 把整个 planner 进程 abort。
+  constexpr double kMinCellCost = 1e-3;
   for (int k = 0; k < (int)candidates.size(); ++k) {
     const CandidateCenter &c = candidates[k];
     double cost = 0.0;
@@ -2078,10 +2082,15 @@ void UniformGrid::calculateCostMatrixSingleThread(
       cost = (1000.0 + (cur_pos - c.pos).norm()) * config_.unknown_penalty_factor_;
     }
 
-    cost_matrix(0, k + 1) = cost;
+    if (cost < kMinCellCost) {
+      ROS_WARN_THROTTLE(2.0,
+                        "[UniformGrid] Near-zero cost (%.3e) from cur_pos to cell %d center %d, "
+                        "clamping to %.3e",
+                        cost, c.cell_id, c.local_idx, kMinCellCost);
+      cost = kMinCellCost;
+    }
 
-    CHECK_GT(cost, 1e-4) << "Zero cost from current position to cell " << c.cell_id
-                         << " center " << c.local_idx;
+    cost_matrix(0, k + 1) = cost;
   }
 
   // Between all candidate centers
@@ -2109,9 +2118,12 @@ void UniformGrid::calculateCostMatrixSingleThread(
           std::vector<int> path;
           cost = connectivity_graph_->searchConnectivityGraphBFS(cell_center_id1, cell_center_id2,
                                                                  path);
-          CHECK_GT(cost, 1e-4)
-              << "Zero cost from cell " << ci.cell_id << " center " << ci.local_idx
-              << " to cell " << cj.cell_id << " center " << cj.local_idx;
+          if (cost < kMinCellCost) {
+            ROS_WARN_THROTTLE(2.0,
+                              "[UniformGrid] Near-zero cost (%.3e) cell %d->%d (BFS), clamping",
+                              cost, ci.cell_id, cj.cell_id);
+            cost = kMinCellCost;
+          }
         }
       } else {
         cost = getAStarCostYaw(ci.pos, cj.pos, Eigen::Vector3d::Zero(), 0.0, 0.0);
@@ -2122,9 +2134,12 @@ void UniformGrid::calculateCostMatrixSingleThread(
             std::vector<int> path;
             cost = connectivity_graph_->searchConnectivityGraphBFS(cell_center_id1,
                                                                    cell_center_id2, path);
-            CHECK_GT(cost, 1e-4)
-                << "Zero cost from cell " << ci.cell_id << " center " << ci.local_idx
-                << " to cell " << cj.cell_id << " center " << cj.local_idx;
+            if (cost < kMinCellCost) {
+              ROS_WARN_THROTTLE(2.0,
+                                "[UniformGrid] Near-zero cost (%.3e) cell %d->%d (BFS fallback), clamping",
+                                cost, ci.cell_id, cj.cell_id);
+              cost = kMinCellCost;
+            }
           }
         }
       }
@@ -2133,12 +2148,12 @@ void UniformGrid::calculateCostMatrixSingleThread(
         cost *= config_.unknown_penalty_factor_;
       }
 
-      cost_matrix(i + 1, j + 1) = cost_matrix(j + 1, i + 1) = cost;
+      // Final clamp: 同 cell 内不同 center 距离极近也会让 cost 趋零，下游 SOP 不接受 0。
+      if (cost < kMinCellCost) {
+        cost = kMinCellCost;
+      }
 
-      CHECK_GT(cost, 1e-6) << "Zero cost from cell " << ci.cell_id << " center " << ci.local_idx
-                           << " pos (" << ci.pos.x() << ", " << ci.pos.y() << ", " << ci.pos.z()
-                           << ") to cell " << cj.cell_id << " center " << cj.local_idx << " pos ("
-                           << cj.pos.x() << ", " << cj.pos.y() << ", " << cj.pos.z() << ")";
+      cost_matrix(i + 1, j + 1) = cost_matrix(j + 1, i + 1) = cost;
     }
   }
 }

@@ -44,6 +44,16 @@ FrontierFinder::FrontierFinder(ros::NodeHandle &nh, const shared_ptr<MapServer> 
              "min_visib_num to %d",
              cluster_min_, min_visib_num_);
   }
+  // 0.4m 档（huge）下 cluster_min/min_visib_num 仍然过大：cluster 体积阈值会到 ~3 m³，
+  // 大多数 frontier 簇被滤掉，导致 FSM 几秒就 "No frontier detected" 提前 FINISH。
+  // 这里按体积比相对 0.2m 档再缩一档，把阈值拉回到 ~0.4 m³ 量级。
+  if (resolution_ > 0.3) {
+    cluster_min_ = std::max(2, cluster_min_ / 8);
+    min_visib_num_ = std::max(2, min_visib_num_ / 4);
+    ROS_WARN("[FrontierFinder] Huge resolution map detected, further decrease cluster_min to %d, "
+             "min_visib_num to %d",
+             cluster_min_, min_visib_num_);
+  }
 
   percep_utils_.reset(new PerceptionUtils(nh));
 }

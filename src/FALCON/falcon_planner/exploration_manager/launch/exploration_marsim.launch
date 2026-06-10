@@ -77,8 +77,8 @@
       <arg name="map_pcd" value="$(find map_generator)/resource/cave.pcd"/>
       <arg name="downsample_resolution" value="$(arg marsim_downsample_resolution)"/>
       <arg name="use_gpu" value="$(arg marsim_use_gpu)"/>
-      <arg name="init_x" value="-30.0"/>
-      <arg name="init_y" value="-25.0"/>
+      <arg name="init_x" value="5.0"/>
+      <arg name="init_y" value="0.0"/>
       <arg name="init_z" value="2.0"/>
       <arg name="init_yaw" value="0.0"/>
       <arg name="use_uav_extra_model" value="$(arg marsim_use_uav_extra_model)"/>
@@ -103,7 +103,7 @@
       <arg name="map_pcd" value="$(find map_generator)/resource/garage.pcd"/>
       <arg name="downsample_resolution" value="$(arg marsim_downsample_resolution)"/>
       <arg name="use_gpu" value="$(arg marsim_use_gpu)"/>
-      <arg name="init_x" value="17.0"/>
+      <arg name="init_x" value="20.0"/>
       <arg name="init_y" value="5.0"/>
       <arg name="init_z" value="2.0"/>
       <arg name="init_yaw" value="0.0"/>

@@ -3,7 +3,7 @@ map_config:
   map_dimension: 3
 
   # Initial position and orientation of the robot under the world frame
-  init_x: 15.0
+  init_x: 20.0
   init_y: 5.0
   init_z: 2.0
   init_yaw: 0.0

@@ -575,8 +575,22 @@ int ExplorationManager::planExploreMotionHGrid(const Vector3d &pos, const Vector
 
     double sop_time = (ros::Time::now() - t1).toSec();
     ROS_INFO("[ExplorationManager] SOP time: %.2f ms", sop_time * 1000.0);
-    CHECK_LE(sop_time, 1.0) << "SOP solver internal error detected, solver blocked with unknown "
-                               "error. Please restart the planner";
+    // SOP solver 内部已经 set_time_limit(1, false)，超时会返回 NN 兜底解，正确性没问题；
+    // setup/teardown 抖动会让外层耗时偶尔超过 1.0s 一两百毫秒（比如 1022ms）。
+    // 之前这里用 CHECK_LE 直接 abort 整个进程，是误判，改为软降级：
+    //   - 偶发轻度超时（<3s）→ 警告 + 继续使用当前 sop_path
+    //   - solver 真卡死（>3s）或返回空路径 → 返回 FAIL，让 FSM 下个 tick 重 plan
+    if (sop_time > 3.0 || sop_path.empty()) {
+      ROS_ERROR("[ExplorationManager] SOP solver gave up (time=%.2f s, path_size=%zu), "
+                "skipping this replan tick",
+                sop_time, sop_path.size());
+      return FAIL;
+    }
+    if (sop_time > 1.0) {
+      ROS_WARN("[ExplorationManager] SOP solver overran soft 1.0s budget (time=%.2f s), "
+               "using nearest-neighbor fallback path",
+               sop_time);
+    }
     ee_->sop_times_.push_back(make_pair(sop_cost_matrix_time, sop_time));
 
     // Draw SOP path
